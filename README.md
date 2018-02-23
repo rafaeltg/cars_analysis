@@ -1,6 +1,6 @@
 # Cars dataset analysis
 
-Given the car data set (['cars.csv']('cars.csv'), of which we are trying to predict the level of acceptance of the car, provide an initial analysis of dataset (e.g. interesting observations, obsolete attributes, whatever you might find).
+Given the car data set (['cars.csv'](./cars.csv), of which we are trying to predict the level of acceptance of the car, provide an initial analysis of dataset (e.g. interesting observations, obsolete attributes, whatever you might find).
 
 Machine learning using python stack:
 * Data preparation
