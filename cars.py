@@ -12,8 +12,12 @@ from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.pipeline import Pipeline
 from itertools import chain
 
-os.mkdir('analysis')
-os.mkdir('results')
+
+if not os.path.exists('./analysis'):
+    os.mkdir('analysis')
+
+if not os.path.exists('./reports'):
+    os.mkdir('reports')
 
 
 # Load dataset
@@ -55,10 +59,12 @@ feats = SelectKBest(chi2, k='all')
 feats.fit(x, y)
 
 pos = np.arange(len(feats.scores_))
+plt.figure(figsize=(10, 5))
 plt.bar(pos, feats.scores_, align='center')
 plt.xticks(pos, x.columns.values.tolist())
 plt.ylabel('Importance score')
 plt.title('Feature importance based on the Chi-square test')
+plt.tight_layout()
 plt.savefig('analysis/feature_importance.png')
 plt.clf()
 
@@ -151,7 +157,7 @@ clf = GridSearchCV(estimator=pipe, param_grid=param_grid, cv=cv, scoring='f1_mac
 clf.fit(x_train, y_train)
 
 # Save the best model found
-with open('results/best_model', 'w') as outfile:
+with open('reports/best_model', 'w') as outfile:
     json.dump(clf.best_params_, outfile, indent=4)
 
 
@@ -169,7 +175,7 @@ def report(y_true, y_pred, file):
 
 
 # Classification report on the training set
-report(y_train, clf.predict(x_train), 'results/train_performance_report')
+report(y_train, clf.predict(x_train), 'reports/train_performance_report')
 
 # Classification report on the testing set
-report(y_test, clf.predict(x_test), 'results/test_performance_report')
+report(y_test, clf.predict(x_test), 'reports/test_performance_report')

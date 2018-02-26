@@ -17,3 +17,5 @@ Machine learning using python stack:
 1) Install required python packages: `pip3 install -r requirements.txt -U`
 
 2) Run the script: `python3 cars.py`
+
+3) The resulting input data analysis will be stored in the directory `analysis`, and the performances reports in the directory `reports`. 
