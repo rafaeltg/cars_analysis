@@ -10,9 +10,10 @@ Machine learning using python stack:
 * Training and evaluation
 
 ## Requirements:
-* Docker (developed and tested with version 1.13.1)
+* Python 3 (developed and tested on version 3.6.3)
+* pip3 (developed and tested on version 9.0.1)
 
 ## Running:
-1) Build the Docker image: `docker build --no-cache -t cars .`
+1) Install required python packages: `pip3 install -r requirements.txt -U`
 
-2) Run the Docker container: `docker run -v .:/code cars`
+2) Run the script: `python3 cars.py`

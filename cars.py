@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import json
+import os
 
 from sklearn.model_selection import train_test_split, StratifiedShuffleSplit, GridSearchCV
 from sklearn.metrics import classification_report, accuracy_score, confusion_matrix
@@ -8,19 +10,29 @@ from sklearn.svm import SVC
 from sklearn.decomposition import PCA
 from sklearn.feature_selection import SelectKBest, chi2
 from sklearn.pipeline import Pipeline
+from itertools import chain
+
+os.mkdir('analysis')
+os.mkdir('results')
 
 
 # Load dataset
 data = pd.read_csv("cars.csv", header=0)
 
-# Encode Data
-data['buying price'].replace(('low', 'med', 'high', 'vhigh'), (0, 1, 2, 3,), inplace=True)
-data['maintenance price'].replace(('low', 'med', 'high', 'vhigh'), (0, 1, 2, 3), inplace=True)
-data['number of doors'].replace(('2', '3', '4', '5more'), (0, 1, 2, 3), inplace=True)
-data['person capacity'].replace(('2', '4', 'more'), (0, 1, 2), inplace=True)
-data['luggage boot'].replace(('small', 'med', 'big'), (0, 1, 2), inplace=True)
-data['safety'].replace(('low', 'med', 'high'), (0, 1, 2), inplace=True)
-data['acceptability'].replace(('unacc', 'acc', 'good', 'vgood'), (0, 1, 2, 3), inplace=True)
+attr_values = {
+    'buying price': ['low', 'med', 'high', 'vhigh'],
+    'maintenance price': ['low', 'med', 'high', 'vhigh'],
+    'number of doors': ['2', '3', '4', '5more'],
+    'person capacity': ['2', '4', 'more'],
+    'luggage boot': ['small', 'med', 'big'],
+    'safety': ['low', 'med', 'high'],
+    'acceptability': ['unacc', 'acc', 'good', 'vgood']
+}
+
+# Encode Data as integer
+data.apply(lambda x: x.replace(attr_values[x.name], range(len(attr_values[x.name])), inplace=True), axis=0)
+
+x, y = data[data.columns[:-1]], np.asarray(data['acceptability'])
 
 
 ###################################
@@ -29,38 +41,33 @@ data['acceptability'].replace(('unacc', 'acc', 'good', 'vgood'), (0, 1, 2, 3), i
 #
 ###################################
 
-# Calculate the frequency of each different attribute related to the different levels of acceptability
-# Based on this analise, it is possible to see that that the different levels 'number of doors' and 'luggage boot' hava
-# similar distribution among the different levels of 'acceptability'. This suggests that these two attributes may not
-# be so relevant for the classifier.
-def freq_table(col_name, idxs):
-    table = pd.crosstab(index=data[col_name], columns=data['acceptability'])
-    table = table.apply(lambda x: x/x.sum(), axis=1)
-    table.columns = ['unacc', 'acc', 'good', 'vgood']
-    table.index = idxs
-    print(col_name)
-    print(table)
-    print()
-
-
-freq_table('buying price', ['low', 'med', 'high', 'vhigh'])
-freq_table('maintenance price', ['low', 'med', 'high', 'vhigh'])
-freq_table('number of doors', ['2', '3', '4', '5more'])
-freq_table('person capacity', ['2', '4', 'more'])
-freq_table('luggage boot', ['small', 'med', 'big'])
-freq_table('safety', ['low', 'med', 'high'])
-
-
-# Classes distributions.
+# Target classes distributions.
 # With this plot it is possible to see that the target classes are very unbalanced.
-data['acceptability'].hist(grid=False)
-plt.savefig('accetaptability_distrib.png')
+data['acceptability'].value_counts().plot.bar(title='Acceptability', rot=0)
+plt.xticks([0, 1, 2, 3], attr_values['acceptability'])
+plt.savefig('analysis/acceptability.png')
+plt.clf()
+
+# Check for possible important features.
+# Based on this plot, it suggest that 'number of doors' and 'luggage boot' are the least important features.
+# Removing them may be beneficial for the classifier.
+feats = SelectKBest(chi2, k='all')
+feats.fit(x, y)
+
+pos = np.arange(len(feats.scores_))
+plt.bar(pos, feats.scores_, align='center')
+plt.xticks(pos, x.columns.values.tolist())
+plt.ylabel('Importance score')
+plt.title('Feature importance based on the Chi-square test')
+plt.savefig('analysis/feature_importance.png')
+plt.clf()
 
 # Attributes distributions
-# With this plot it is possible to see that all input feature seems evenly distributed.
-data[data.columns[:-1]].hist(grid=False)
+# With this plot it is possible to see that all input features seem evenly distributed.
+x.hist(grid=False)
 plt.subplots_adjust(hspace=0.55)
-plt.savefig('attributes_distrib.png', bbox_inches='tight')
+plt.savefig('analysis/attributes_distrib.png', bbox_inches='tight')
+plt.clf()
 
 # Attributes x acceptability
 cols = data['acceptability'].replace((0, 1, 2, 3), ('red', 'black', 'blue', 'green'))
@@ -72,7 +79,25 @@ data.plot.scatter(x='person capacity', y='acceptability', c=cols, ax=axes[1][0])
 data.plot.scatter(x='luggage boot', y='acceptability', c=cols, ax=axes[1][1])
 data.plot.scatter(x='safety', y='acceptability', c=cols, ax=axes[1][2])
 fig.subplots_adjust(hspace=0.55, wspace=0.45)
-fig.savefig('attribute_class.png', bbox_inches='tight')
+fig.savefig('analysis/attribute_acceptability_scatter.png', bbox_inches='tight')
+
+# Calculate the frequency of each different attribute related to the different levels of acceptability
+# Based on these plots, it is possible to see that that the different levels 'number of doors' have
+# similar distribution among the different levels of 'acceptability'. This suggests that this attribute may not
+# be so relevant for the classifier.
+fig, axes = plt.subplots(2, 3)
+fig.set_size_inches(15, 7.5)
+
+for c, ax in zip(attr_values.keys(), list(chain.from_iterable(axes))):
+    table = pd.crosstab(index=data[c], columns=data['acceptability']).apply(lambda x: x/x.sum(), axis=0)
+    table.columns = attr_values['acceptability']
+    table.index = attr_values[c]
+    table.plot.bar(title=c, rot=0, ax=ax)
+
+fig.subplots_adjust(hspace=0.55, wspace=0.45)
+fig.set_tight_layout(True)
+fig.savefig('analysis/attribute_acceptability_bar.png')
+plt.clf()
 
 
 ######################
@@ -81,19 +106,7 @@ fig.savefig('attribute_class.png', bbox_inches='tight')
 #
 ######################
 
-x, y = data[data.columns[:-1]], np.asarray(data['acceptability'])
-
-# Check for possible important features.
-# Based on this analise, it suggest that 'number of doors' and 'luggage boot' are the least important features.
-# Removing them may be beneficial for the classifier.
-feats = SelectKBest(chi2, k='all')
-feats.fit(x, y)
-print('Feature importance based on the Chi-square test:')
-for i, c in enumerate(x.columns.values.tolist()):
-    print('%s: %.4f' % (c, feats.scores_[i]))
-
-
-# Split Data to Train and Test (80%/20%)
+# Split Data to Train and Test (80%/20%) keeping the original class distribution
 x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_state=42)
 
 # Use a 5-fold CV procedure to find the best parameter set for the model.
@@ -101,13 +114,13 @@ x_train, x_test, y_train, y_test = train_test_split(x, y, test_size=0.2, random_
 cv = StratifiedShuffleSplit(n_splits=5, test_size=0.2)
 
 
-######################
+#############################
 #
-# Model setup
+# Model setup and evaluation
 #
-######################
+#############################
 
-# Model pipeline with possible dimensionality reduction (PCA or K-best features) step and SVC as the classifier.
+# Model pipeline with possible dimensionality reduction (PCA or K-best features) step and SVM as the classifier.
 # The dimensionality reduction step aims to remove the irrelevant features pointed out in the previous analise.
 pipe = Pipeline([
     ('reduce_dim', PCA()),
@@ -116,7 +129,7 @@ pipe = Pipeline([
 
 # Set the parameters grid
 reduce_dim_opts = [None, PCA(5), PCA(6), SelectKBest(chi2, k=4), SelectKBest(chi2, k=5)]
-c_opts = [1, 10, 100, 1000]
+c_opts = [1, 10, 100]
 
 param_grid = [
     {
@@ -137,24 +150,26 @@ param_grid = [
 clf = GridSearchCV(estimator=pipe, param_grid=param_grid, cv=cv, scoring='f1_macro', n_jobs=-1)
 clf.fit(x_train, y_train)
 
-print('\n======================================================================\n')
-print("Best parameters set found on training set:")
-print(clf.best_params_)
+# Save the best model found
+with open('results/best_model', 'w') as outfile:
+    json.dump(clf.best_params_, outfile, indent=4)
 
 
-def report(y_true, y_pred):
-    print(classification_report(y_true, y_pred, target_names=['unacc', 'acc', 'good', 'vgood']))
-    print('Accuracy: %.4f' % accuracy_score(y_true, y_pred))
-    print('\nConfusion matrix:')
-    print(pd.DataFrame(confusion_matrix(y_true, y_pred),
-                       index=['unacc', 'acc', 'good', 'vgood'],
-                       columns=['unacc', 'acc', 'good', 'vgood']))
+def report(y_true, y_pred, file):
+    rep = 'Confusion matrix:\n\n'
+    rep += pd.DataFrame(confusion_matrix(y_true, y_pred),
+                        index=['unacc', 'acc', 'good', 'vgood'],
+                        columns=['unacc', 'acc', 'good', 'vgood']).to_string()
+    rep += '\n\nClassification metrics:\n\n'
+    rep += classification_report(y_true, y_pred, target_names=['unacc', 'acc', 'good', 'vgood'])
+    rep += '\nAccuracy: %.4f' % accuracy_score(y_true, y_pred)
+
+    with open(file=file, mode='w') as outfile:
+        outfile.write(rep)
 
 
-print('\n======================================================================\n')
-print("Train set classification report:")
-report(y_train, clf.predict(x_train))
+# Classification report on the training set
+report(y_train, clf.predict(x_train), 'results/train_performance_report')
 
-print('\n======================================================================\n')
-print("Test set classification report:")
-report(y_test, clf.predict(x_test))
+# Classification report on the testing set
+report(y_test, clf.predict(x_test), 'results/test_performance_report')
