@@ -1,6 +1,0 @@
-{
-    "classifier__C": 100,
-    "classifier__gamma": 0.1,
-    "classifier__kernel": "rbf",
-    "reduce_dim": null
-}
